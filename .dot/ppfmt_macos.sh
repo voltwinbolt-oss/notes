@@ -19,12 +19,22 @@ indent() { printf "%*s" "$1" ""; }
 strip() { echo "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
 
 stack_depth() {
-    echo "${INDENT_STACK[-1]}"
+    # echo "${INDENT_STACK[-1]}"
+    local len=${#INDENT_STACK[@]}
+    if (( len > 0 )); then
+        echo "${INDENT_STACK[$((len-1))]}"
+    else
+        echo 0
+    fi
 }
 push_indent() {
     INDENT_STACK+=("$1")
 }
 pop_indent() {
+    # local len=${#INDENT_STACK[@]}
+    # if (( len > 1 )); then
+    #     unset "INDENT_STACK[$((len-1))]"
+    # fi
     local len=${#INDENT_STACK[@]}
     if (( len > 1 )); then
         unset "INDENT_STACK[$((len-1))]"
