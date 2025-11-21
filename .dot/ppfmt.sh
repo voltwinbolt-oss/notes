@@ -29,7 +29,7 @@ align_arrows_block() {
     local max_key=0
 
     # Measure first key
-    if [[ "$line" =~ => ]]; then
+    if [[ "$line" =~ "=>" ]]; then
         key="${line%%=>*}"
         key="$(echo "$key" | sed 's/[[:space:]]*$//')"
         (( ${#key} > max_key )) && max_key=${#key}
@@ -44,7 +44,7 @@ align_arrows_block() {
 
         block+=("$stripped")
 
-        if [[ "$stripped" =~ => ]]; then
+        if [[ "$stripped" =~ "=>" ]]; then
             key="${stripped%%=>*}"
             key="$(echo "$key" | sed 's/[[:space:]]*$//')"
             (( ${#key} > max_key )) && max_key=${#key}
@@ -61,7 +61,7 @@ align_arrows_block() {
             # Dedent stack
             unset 'stack[-1]'
             return 0
-        elif [[ "$l" =~ => ]]; then
+        elif [[ "$l" =~ "=>" ]]; then
             key="${l%%=>*}"
             key="$(echo "$key" | sed 's/[[:space:]]*$//')"
             val="${l#*=>}"
@@ -91,7 +91,7 @@ while IFS= read -r raw || [[ -n "$raw" ]]; do
     fi
 
     # Arrow block (params)
-    if [[ "$line" =~ => ]]; then
+    if [[ "$line" =~ "=>" ]]; then
         align_arrows_block "${stack[-1]}" "$line"
         continue
     fi
