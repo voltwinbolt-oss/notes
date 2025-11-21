@@ -3,39 +3,38 @@
 file="$1"
 INDENT=2
 
-# Stack of indentation values
-stack=(0)
+# Stack of indentation contexts
+# Each entry: type:indent, type = "brace" or "paren"
+stack=("brace:0")
 
 indent() {
     printf "%*s" "$1" ""
 }
 
-opens_block() {
-    [[ "$1" =~ \{$ ]]
-}
+# Detect block opening/closing
+opens_brace_block() { [[ "$1" =~ \{$ ]]; }
+closes_brace_block() { [[ "$1" =~ ^\} ]]; }
 
-closes_block() {
-    [[ "$1" =~ ^\} ]]
-}
+opens_paren_block() { [[ "$1" =~ \($ ]]; }
+closes_paren_block() { [[ "$1" =~ ^\) ]]; }
 
+# Align arrows in resource param blocks
 align_arrows_block() {
     local indent_level="$1"
     local first_line="$2"
-
     local block=("$first_line")
     local max_key=0
 
-    # helper function to strip trailing spaces
     strip_trail() { echo "$1" | sed 's/[[:space:]]*$//'; }
 
-    # measure first key
+    # Measure first line key
     if [[ "$first_line" =~ "=>" ]]; then
         key="${first_line%%=>*}"
         key="$(strip_trail "$key")"
         (( ${#key} > max_key )) && max_key=${#key}
     fi
 
-    # read additional param lines
+    # Read additional lines until closing brace or blank line
     while IFS= read -r next || [[ -n "$next" ]]; do
         local stripped="$(echo "$next" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
         [[ -z "$stripped" ]] && break
@@ -51,17 +50,16 @@ align_arrows_block() {
         [[ "$stripped" =~ \}$ ]] && break
     done
 
-    # print the aligned block
+    # Print aligned block
     for line in "${block[@]}"; do
-        # if closing brace
         if [[ "$line" =~ ^\} ]]; then
-            # pop stack level
+            # pop brace from stack
             last=$(( ${#stack[@]} - 1 ))
             unset "stack[$last]"
 
-            # print at new top indent
+            # print closing brace at new top indent
             last=$(( ${#stack[@]} - 1 ))
-            indent "${stack[$last]}"
+            indent "${stack[$last]#*:}"
             echo "}"
             return 0
         fi
@@ -86,35 +84,48 @@ while IFS= read -r raw || [[ -n "$raw" ]]; do
 
     [[ -z "$line" ]] && echo "" && continue
 
-    # CASE 1 — closing brace
-    if closes_block "$line" ; then
+    # Handle closing braces
+    if closes_brace_block "$line"; then
         last=$(( ${#stack[@]} - 1 ))
         unset "stack[$last]"
-
         last=$(( ${#stack[@]} - 1 ))
-        indent "${stack[$last]}"
+        indent "${stack[$last]#*:}"
         echo "}"
         continue
     fi
 
-    # CASE 2 — param block with =>
+    # Handle closing parentheses
+    if closes_paren_block "$line"; then
+        last=$(( ${#stack[@]} - 1 ))
+        # Only pop if top is paren
+        [[ "${stack[$last]%%:*}" == "paren" ]] && unset "stack[$last]"
+        last=$(( ${#stack[@]} - 1 ))
+        indent "${stack[$last]#*:}"
+        echo ")"
+        continue
+    fi
+
+    # Arrow param block
     if [[ "$line" =~ "=>" ]]; then
         last=$(( ${#stack[@]} - 1 ))
-        current_indent="${stack[$last]}"
+        current_indent="${stack[$last]#*:}"
         align_arrows_block "$current_indent" "$line"
         continue
     fi
 
-    # CASE 3 — normal line
+    # Normal line
     last=$(( ${#stack[@]} - 1 ))
-    indent "${stack[$last]}"
+    indent "${stack[$last]#*:}"
     echo "$line"
 
-    # CASE 4 — opening brace
-    if opens_block "$line"; then
+    # Handle block openings
+    if opens_brace_block "$line"; then
         last=$(( ${#stack[@]} - 1 ))
-        new_indent=$(( stack[$last] + INDENT ))
-        stack+=("$new_indent")
+        new_indent=$(( ${stack[$last]#*:} + INDENT ))
+        stack+=("brace:$new_indent")
+    elif opens_paren_block "$line"; then
+        last=$(( ${#stack[@]} - 1 ))
+        new_indent=$(( ${stack[$last]#*:} + INDENT ))
+        stack+=("paren:$new_indent")
     fi
-
 done < "$file"
